@@ -25,9 +25,11 @@ module Image =
 
 module HttpRequest =
     open FSharp.Data
-    type T = {sessionId: string}
+    open System.Net
+    open FSharp.Data.HttpRequestHeaders
 
-    let create (sessId:string) = {sessionId=sessId}
+    type T = {sessionId: string; studentId:int}
+
     let requestStream ({sessionId=id}) (path: string)=
         try 
             printfn "Requesting %s" path
@@ -35,6 +37,14 @@ module HttpRequest =
             Some a
         with
         | :? System.Net.WebException as ex -> printfn "%s" ex.Message; None
+
+    let create (username:string) (password:string) =
+          let response = Http.Request("https://edufox.pl/logowanie", httpMethod="POST", body = FormValues [("_username", username); ("_password", password)], headers = [ ContentType HttpContentTypes.Any ])
+          let response2 = Http.RequestString("https://edufox.pl/logowanie",  cookies = seq [("PHPSESSID", response.Cookies.["PHPSESSID"]); ("cookie_info", "testcookie")], httpMethod="POST", body = FormValues [("_username", username); ("_password", password)])
+          let html = HtmlDocument.Parse(response2)
+          let studentId = html.Body().CssSelect("input[name='student']")|> List.map (fun x -> x.AttributeValue("value") |> int) |> List.head
+
+          {sessionId=response.Cookies.["PHPSESSID"]; studentId=studentId}
 
     let requestString ({sessionId=id}) (path: string)=
        try 
@@ -105,27 +115,25 @@ module Edufox =
                 printfn "Is last %b; no new %b" isLast noNew
                 (lastPostId, isLast || noNew)
 
-    let processSinglePage (lastPostId: int) (sessionId: string) (studentId:string) (dir: string) =
-        let httpRequest = HttpRequest.create sessionId
-
-        let url = @"/getPosts?school_id=67&group_id=78&teacher_id=&last_post_id=" + lastPostId.ToString() + "&student_id=" + studentId
+    let processSinglePage (lastPostId: int) (httpRequest:HttpRequest.T) (dir: string) =
+        let url = @"/getPosts?school_id=67&group_id=78&teacher_id=&last_post_id=" + lastPostId.ToString() + "&student_id=" + httpRequest.studentId.ToString()
 
         HttpRequest.requestString httpRequest url
         |> Option.map (processRequest httpRequest dir)
 
-    let rec processRequestRec (lastPostId: int) (sessionId: string) (studentId:string) (dir: string) =
-        let result = processSinglePage lastPostId sessionId studentId dir
+    let rec processRequestRec (lastPostId: int) (httpRequest:HttpRequest.T) (dir: string) =
+        let result = processSinglePage lastPostId httpRequest dir
 
         match result with 
          | Some (_, true) -> printfn "----- the end -----"; None
-         | Some (lastProcessedId, false) -> processRequestRec lastProcessedId sessionId studentId dir
+         | Some (lastProcessedId, false) -> processRequestRec lastProcessedId httpRequest dir
          | None -> printfn "error occured"; None
 
 
-    let processFirstPage (sessionId: string) (studentId:string) (dir: string) =
-        let httpRequest = HttpRequest.create sessionId
+    let processFirstPage (username: string) (password:string) (dir: string) =
+        let httpRequest = HttpRequest.create username password
 
-        let url = @"/getPosts?school_id=67&group_id=78&teacher_id=&student_id=" + studentId
+        let url = @"/getPosts?school_id=67&group_id=78&teacher_id=&student_id=" + httpRequest.studentId.ToString()
     
         let result =    
             HttpRequest.requestString httpRequest url
@@ -133,5 +141,5 @@ module Edufox =
 
         match result with 
          | Some (_, true) -> printfn "----- the end -----"; None
-         | Some (lastProcessedId, false) -> processRequestRec lastProcessedId sessionId studentId dir
+         | Some (lastProcessedId, false) -> processRequestRec lastProcessedId httpRequest dir
          | None -> printfn "error occured"; None
