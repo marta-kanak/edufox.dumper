@@ -40,11 +40,11 @@ module HttpRequest =
 
     let create (username:string) (password:string) =
           let response = Http.Request("https://edufox.pl/logowanie", httpMethod="POST", body = FormValues [("_username", username); ("_password", password)], headers = [ ContentType HttpContentTypes.Any ])
-          let response2 = Http.RequestString("https://edufox.pl/logowanie",  cookies = seq [("PHPSESSID", response.Cookies.["PHPSESSID"]); ("cookie_info", "testcookie")], httpMethod="POST", body = FormValues [("_username", username); ("_password", password)])
-          let html = HtmlDocument.Parse(response2)
+          let response2 = Http.Request("https://edufox.pl/logowanie",  cookies = seq [("PHPSESSID", response.Cookies.["PHPSESSID"]); ("cookie_info", "testcookie")], httpMethod="POST", body = FormValues [("_username", username); ("_password", password)])
+          let html = HtmlDocument.Parse(string response2.Body)
           let studentId = html.Body().CssSelect("input[name='student']")|> List.map (fun x -> x.AttributeValue("value") |> int) |> List.head
 
-          {sessionId=response.Cookies.["PHPSESSID"]; studentId=studentId}
+          {sessionId=response2.Cookies.["PHPSESSID"]; studentId=studentId}
 
     let requestString ({sessionId=id}) (path: string)=
        try 
