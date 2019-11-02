@@ -17,7 +17,7 @@ module Image =
 
     let create imageSrc = 
         match imageSrc with
-        | Regex @"\/uploads\/schools\/([0-9]+)\/posts\/([0-9]+)\/([A-Za-z0-9_\.]*)" [ school; post; file ] -> Some {school = school; post = post |> int ; file = file; path=imageSrc }
+        | Regex @"\/uploads\/schools\/([0-9]+)\/posts\/([0-9]+)\/([^\s\/]*)" [ school; post; file ] -> Some {school = school; post = post |> int ; file = file; path=imageSrc }
         | _ -> None
 
     let getFilePath (image:T) (dir:string) = System.IO.Path.Combine(dir, image.post.ToString(), image.file)
